@@ -1,20 +1,34 @@
-console.log('hello world');
+const express = require("express");
+const app = express();
+const connectDB = require("./config/database");
+const cookieParser = require("cookie-parser");
+const { authRouter } = require("./routes/auth.route");
+const { profileRouter } = require("./routes/profile.route");
+const { requestRouter } = require("./routes/request.route");
+const { userRouter } = require("./routes/user.route");
+const cors = require("cors");
 
-const express = require('express');
-const app = express(); // on calling express we created a instance(application) of express, which will allow us to create a new server.
+app.use(                                 // cors is used before any other middleware
+  cors({
+    origin: "http://localhost:5173",      // whitelist the domains that are allowed to make cross-origin requests
+    credentials: true,
+  })
+);
+app.use(express.json());
+app.use(cookieParser());
 
-app.use((req,res) => {
-    res.send('Hello World');
-})
+app.use("/", authRouter);
+app.use("/", profileRouter);
+app.use("/", requestRouter);
+app.use("/", userRouter);
 
-app.use('/test', (req,res) => {
-    res.send('Welcome Welcome !!');
-})
-
-app.use('/hello', (req,res) => {
-    res.send('Hello Hello Hello!!');
-})
-
-app.listen(2730, () => {
-    console.log('Server is listening on port 3000');
-})
+connectDB()
+  .then(() => {
+    console.log("MongoDB connection established......");
+    app.listen(3000, () => {
+      console.log("Server is successfully running on port 3000");
+    });
+  })
+  .catch((err) => {
+    console.error("Error connecting to the database:", err);
+  });

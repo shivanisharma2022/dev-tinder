@@ -1,8 +1,6 @@
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
-    //await mongoose.connect('mongodb://localhost:27017/dev-tinder')
-    
-    await mongoose.connect('mongodb+srv://tinderDev:tinderDev@tinderdev.jc6eg.mongodb.net/tinderDev')
+    await mongoose.connect('mongodb+srv://learning:learning@learning.jc6eg.mongodb.net/devTinder')
 };
 module.exports = connectDB;

@@ -25,8 +25,8 @@ app.use("/", userRouter);
 connectDB()
   .then(() => {
     console.log("MongoDB connection established......");
-    app.listen(3000, () => {
-      console.log("Server is successfully running on port 3000");
+    app.listen(4000, () => {
+      console.log("Server is successfully running on port 4000");
     });
   })
   .catch((err) => {

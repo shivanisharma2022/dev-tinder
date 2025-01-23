@@ -7,6 +7,7 @@ const { profileRouter } = require("./routes/profile.route");
 const { requestRouter } = require("./routes/request.route");
 const { userRouter } = require("./routes/user.route");
 const cors = require("cors");
+require("dotenv").config();
 
 app.use(                                 // cors is used before any other middleware
   cors({
@@ -25,8 +26,8 @@ app.use("/", userRouter);
 connectDB()
   .then(() => {
     console.log("MongoDB connection established......");
-    app.listen(4000, () => {
-      console.log("Server is successfully running on port 4000");
+    app.listen(process.env.PORT, () => {
+      console.log(`Server is successfully running on port ${process.env.PORT}`);
     });
   })
   .catch((err) => {

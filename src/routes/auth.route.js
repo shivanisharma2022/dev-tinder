@@ -22,7 +22,7 @@ authRouter.post("/signup", async (req, res) => {
       password: passwordHash,
     });
     const userNew = await user.save();
-    const token = await jwt.sign({ _id: user._id }, "dev@tinder$3000", {
+    const token = await jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
       expiresIn: "1h",
     });
     res.cookie("token", token, {
@@ -45,7 +45,7 @@ authRouter.post("/login", async (req, res) => {
     //const isPasswordValid = user.validatePassword(password);
     if (isPasswordValid) {
       // create a jwt token
-      const token = await jwt.sign({ _id: user._id }, "dev@tinder$3000", {
+      const token = await jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
         expiresIn: "1h",
       });
       //const token = await user.getJWT(); // will get the current user jwt token

@@ -8,6 +8,7 @@ const { requestRouter } = require("./routes/request.route");
 const { userRouter } = require("./routes/user.route");
 const cors = require("cors");
 require("dotenv").config();
+require("./utils/cronjob");
 
 app.use(                                 // cors is used before any other middleware
   cors({

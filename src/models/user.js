@@ -66,6 +66,13 @@ const userSchema = new mongoose.Schema(
     skills: {
       type: [String], // if not given in payload then also it will create some empty space in db
     },
+    isPremium: {
+      type: Boolean,
+      default: false,
+    },
+    membershipType: {
+      type: String
+    },
   },
 
   {

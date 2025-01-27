@@ -10,6 +10,9 @@ const { paymentRouter } = require("./routes/payment.route");
 const cors = require("cors");
 require("dotenv").config();
 require("./utils/cronjob");
+const http = require("http");
+const initializeSocket = require("./utils/socket");
+const { chatRouter } = require("./routes/chat.route");
 
 app.use(                                 // cors is used before any other middleware
   cors({
@@ -25,11 +28,17 @@ app.use("/", profileRouter);
 app.use("/", requestRouter);
 app.use("/", userRouter);
 app.use("/", paymentRouter);
+app.use("/", chatRouter);
 
+// Socket.io integration
+const server = http.createServer(app);
+initializeSocket(server);
+
+// Mongodb connection
 connectDB()
   .then(() => {
     console.log("MongoDB connection established......");
-    app.listen(process.env.PORT, () => {
+    server.listen(process.env.PORT, () => { // we wrote server.listen instead of app.listen at the time of integrating socket.io
       console.log(`Server is successfully running on port ${process.env.PORT}`);
     });
   })

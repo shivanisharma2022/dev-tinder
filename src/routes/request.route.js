@@ -3,6 +3,7 @@ const requestRouter = express.Router();
 const { userAuth } = require("../middlewares/auth");
 const { ConnectionRequest } = require("../models/connectionRequest");
 const User = require("../models/user");
+const sendEmail = require("../utils/sendEmail");
 
 requestRouter.post(
   "/request/send/:status/:userId",
@@ -46,6 +47,15 @@ requestRouter.post(
       });
       const data = await connectionRequest.save();
 
+      // send email to user
+
+      const emailRes = await sendEmail.run(
+        "A new connection request from " + req.user.firstName, 
+        req.user.firstName + ' is ' + status + ' in ' + toUserIdExists.firstName
+      );
+
+      console.log("Email Response: ", emailRes);
+
       res.json({
         message: `${req.user.firstName} is ${status} in ${toUserIdExists.firstName}`,
         data: data,
@@ -75,7 +85,7 @@ requestRouter.post("/request/review/:status/:requestId", userAuth, async (req, r
       status: "interested"
     });
 
-    if(!connectionRequest){
+    if (!connectionRequest) {
       return res.status(400).json({ message: "Connection request does not exist" });
     }
 
@@ -86,7 +96,7 @@ requestRouter.post("/request/review/:status/:requestId", userAuth, async (req, r
       message: `${loggedInUser.firstName} has ${status} the connection request`,
       data: data,
     });
-    
+
   } catch (err) {
     res.status(400).send("Error getting the user: " + err.message);
   }

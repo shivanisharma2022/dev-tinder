@@ -12,6 +12,13 @@ authRouter.post("/signup", async (req, res) => {
     validateSignupData(req);
     // encryption of password and then storing it in db
     const { firstName, lastName, email, password } = req.body;
+
+    // Check if email is already registered
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: "Email already exists. Please login instead." });
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
     // creating a new instance of the User model
     //const user = new User(req.body); // bad way
@@ -28,7 +35,7 @@ authRouter.post("/signup", async (req, res) => {
     res.cookie("token", token, {
       expires: new Date(Date.now() + 8 * 360000),
     });
-    res.send({message: "User Added Successfully", data: userNew});
+    res.send({ message: "User Added Successfully", data: userNew });
   } catch (err) {
     res.status(400).send("Error saving the user: " + err.message);
   }
@@ -52,7 +59,7 @@ authRouter.post("/login", async (req, res) => {
       console.log(token);
       // add token to cookie and send response back to user
       res.cookie("token", token);
-      res.send({message: "Login Successful", data: user});
+      res.send({ message: "Login Successful", data: user });
     } else {
       throw new Error("Invalid credentials");
     }

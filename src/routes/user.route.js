@@ -10,7 +10,7 @@ userRouter.get("/user/requests/received", userAuth, async (req, res) => {
     const connectionRequests = await ConnectionRequest.find({
       toUserId: loggedInUser._id,
       status: "interested",
-    }).populate("fromUserId", ["firstName", "lastName"]);
+    }).populate("fromUserId", ["firstName", "lastName", "imageUrl"]);
 
     res.json({
       message: "Connection requests received",
@@ -30,8 +30,8 @@ userRouter.get("/user/connections", userAuth, async (req, res) => {
         { toUserId: loggedInUser._id, status: "accepted" },
       ],
     })
-      .populate("fromUserId", ["firstName", "lastName"])
-      .populate("toUserId", ["firstName", "lastName"]);
+      .populate("fromUserId", ["firstName", "lastName", "imageUrl"])
+      .populate("toUserId", ["firstName", "lastName", "imageUrl"]);
 
     const data = await connectionRequests.map((row) => {
       if (row.fromUserId._id.toString() == loggedInUser._id.toString()) {

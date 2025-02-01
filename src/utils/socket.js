@@ -47,11 +47,22 @@ const initializeSocket = (server) => {
                     text,
                 });
                 await chat.save();
-                io.to(roomId).emit('receiveMessage', { firstName, lastName, text });
+
+                // Fetch sender's imageUrl
+                const sender = await User.findById(userId).select("imageUrl");
+
+                io.to(roomId).emit('receiveMessage', {
+                    firstName,
+                    lastName,
+                    text,
+                    imageUrl: sender?.imageUrl || "",
+                });
+
             } catch (error) {
                 console.log(error);
             }
         });
+
 
         socket.on('disconnect', () => {
         });

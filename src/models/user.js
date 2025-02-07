@@ -16,6 +16,18 @@ const userSchema = new mongoose.Schema(
     lastName: {
       type: String,
     },
+    countryCode: {
+      type: String,
+      default: "+91",
+    },
+    phone: {
+      type: String,
+      validate(value) {
+        if (!validator.isMobilePhone(value)) {
+          throw new Error("Enter a valid phone number"+ value);
+        }
+      },
+    },
     email: {
       type: String,
       required: true,
@@ -71,7 +83,8 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
     membershipType: {
-      type: String
+      type: String,
+      default: "free",
     },
   },
 

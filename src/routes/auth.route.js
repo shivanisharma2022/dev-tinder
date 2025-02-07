@@ -5,6 +5,10 @@ const { validateSignupData } = require("../utils/validation");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { userAuth } = require("../middlewares/auth");
+const nodemailer = require("nodemailer");
+const { run } = require('../utils/sendEmail');
+const Handlebars = require("handlebars");
+const forgotPasswordTemplate = require('../utils/forgotPassword.html');
 require("dotenv").config();
 const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SERVICE_ID } = process.env;
 const client = require("twilio")(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, {
@@ -21,7 +25,7 @@ authRouter.post("/signup", async (req, res) => {
     // Check if email is already registered
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ error: "Email already exists. Please login instead." });
+      return res.status(400).json({ error: "Email already exists" });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -85,7 +89,7 @@ authRouter.post("/sendOtp", async (req, res) => {
       });
     res.status(200).json({ message: "OTP Sent Successfully", data: otpResponse });
   } catch (err) {
-    res.status(err?.status || 400 ).send(err?.message || "Error in sendOtp: " + err.message);
+    res.status(err?.status || 400).send(err?.message || "Error in sendOtp: " + err.message);
   }
 });
 
@@ -103,20 +107,56 @@ authRouter.post("/verifyOtp", async (req, res) => {
           code: otp,
           channel: 'sms',
         });
-        if (otpResponse.status === 'approved') {
+      if (otpResponse.status === 'approved') {
         res.status(200).json({ message: "OTP Verified Successfully", data: otpResponse });
       } else {
         res.status(400).send({ message: "Invalid OTP" });
       }
     }
   } catch (err) {
-    res.status(err?.status || 400 ).send(err?.message || "Error in verifyOtp: " + err.message);
+    res.status(err?.status || 400).send(err?.message || "Error in verifyOtp: " + err.message);
   }
 });
 
 authRouter.post("/forgotPassword", async (req, res) => {
   try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found" });
 
+    const secret = process.env.JWT + user.password;
+    const token = jwt.sign({ id: user._id, email: user.email }, secret, { expiresIn: '1h' });
+
+    const resetURL = `${process.env.WEBSITE_URL}resetpassword?id=${user._id}&token=${token}`;
+
+    // const transporter = nodemailer.createTransport({
+    //   service: 'gmail',
+    //   auth: {
+    //     user: 
+    //     pass: 
+    //   },
+    // });
+
+    // const mailOptions = {
+    //   to: process.env.SENDER_EMAIL, //user.email,
+    //   from: process.env.RECEIVER_EMAIL,
+    //   subject: 'Password Reset Request',
+    //   text: forgotPasswordTemplate(resetURL)
+    // };
+
+    // await transporter.sendMail(mailOptions);
+
+    const subject = 'Password Reset Request';
+
+    const template = Handlebars.compile(forgotPasswordTemplate);
+    const data = {
+      WEBSITE_URL: process.env.WEBSITE_URL,
+      resetURL: resetURL,
+      SENDER_EMAIL: process.env.SENDER_EMAIL
+    };
+    const html = template(data);
+    await run(subject, html);
+    res.status(200).json({ message: 'Password reset link sent', data: token });
   } catch (err) {
     res.status(400).send("Error in forgotPassword: " + err.message);
   }
@@ -124,15 +164,51 @@ authRouter.post("/forgotPassword", async (req, res) => {
 
 authRouter.post("/resetPassword", async (req, res) => {
   try {
+    const { id, token } = req.query;
+    const { password } = req.body;
+    const user = await User.findOne({ _id: id });
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
 
+    const secret = process.env.JWT + user.password;
+    jwt.verify(token, secret);
+
+    const encryptedPassword = await bcrypt.hash(password, 10);
+    const updatedUser = await User.findByIdAndUpdate(id, { password: encryptedPassword }, { new: true });
+    res.status(200).json({ message: 'Password has been reset', data: updatedUser });
   } catch (err) {
     res.status(400).send("Error in resetPassword: " + err.message);
   }
 });
 
-authRouter.post("/changePassword", async (req, res) => {
+authRouter.post("/changePassword", userAuth, async (req, res) => {
   try {
+    const { oldPassword, newPassword, confirmPassword } = req.body;
+    const userId = req.user._id;
 
+    const isValidOldPassword = await bcrypt.compare(oldPassword, req.user.password);
+    if (!isValidOldPassword) {
+      return res.status(401).json({ message: "Invalid old password" });
+    }
+
+    const isNewPasswordSameAsOld = await bcrypt.compare(newPassword, req.user.password);
+    if (isNewPasswordSameAsOld) {
+      return res.status(400).json({ message: "New password cannot be the same as old password" });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: "New password and confirm password do not match" });
+    }
+
+    const user = await User.findByIdAndUpdate(userId, {
+      password: await bcrypt.hash(newPassword, 10)
+    }, {
+      new: true,
+      runValidators: true //ensure that the new password is validated before it's saved to the db
+    });
+
+    res.status(200).json({ message: "Password changed successfully", data: user });
   } catch (err) {
     res.status(400).send("Error in changePassword: " + err.message);
   }

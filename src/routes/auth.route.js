@@ -9,7 +9,10 @@ const nodemailer = require("nodemailer");
 const { run } = require('../utils/sendEmail');
 const Handlebars = require("handlebars");
 const forgotPasswordTemplate = require('../utils/forgotPassword.html');
+const otpEmailTemplate = require('../utils/emailOtp.html');
+const { generateRandomCode } = require("../utils/constant");
 require("dotenv").config();
+
 const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SERVICE_ID } = process.env;
 const client = require("twilio")(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, {
   lazyLoading: true
@@ -21,20 +24,15 @@ authRouter.post("/signup", async (req, res) => {
     validateSignupData(req);
     // encryption of password and then storing it in db
     const { firstName, lastName, phone, email, password } = req.body;
-
-    // Check if email is already registered
     const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    if (existingUser && existingUser.emailVerify.isVerified === true) {
       return res.status(400).json({ error: "Email already exists" });
     }
-
     const passwordHash = await bcrypt.hash(password, 10);
-    // creating a new instance of the User model
-    //const user = new User(req.body); // bad way
     const user = new User({
       firstName,
       lastName,
-      phone,
+      phone: `+91${phone}`,
       email,
       password: passwordHash,
     });
@@ -42,10 +40,8 @@ authRouter.post("/signup", async (req, res) => {
     const token = await jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
       expiresIn: "1h",
     });
-    res.cookie("token", token, {
-      expires: new Date(Date.now() + 8 * 360000),
-    });
-    res.send({ message: "User Added Successfully", data: userNew });
+    res.cookie("token", token, { expires: new Date(Date.now() + 8 * 360000) });
+    res.send({ message: "User Added Successfully", data: { userId: userNew._id, token: token } });
   } catch (err) {
     res.status(400).send("Error saving the user: " + err.message);
   }
@@ -55,39 +51,126 @@ authRouter.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email: email });
-    if (!user) {
-      throw new Error("Invalid credentials");
+    if (!user || user.emailVerify.isVerified === false) {
+      throw new Error("Email does not exist. Please create an account.");
     }
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    //const isPasswordValid = user.validatePassword(password);
-    if (isPasswordValid) {
-      // create a jwt token
-      const token = await jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-        expiresIn: "1h",
-      });
-      //const token = await user.getJWT(); // will get the current user jwt token
-      console.log(token);
-      // add token to cookie and send response back to user
-      res.cookie("token", token);
-      res.send({ message: "Login Successful", data: user });
-    } else {
+    if (!isPasswordValid) {
       throw new Error("Invalid credentials");
     }
+    const token = await jwt.sign({ _id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    res.cookie("token", token);
+    res.send({ message: "Login Successful", data: { token: token, data: user } });
   } catch (err) {
-    res.status(400).send("Error logging in: " + err.message);
+    res.status(400).send(err.message);
+  }
+});
+
+authRouter.post("/sendOtpEmail", async (req, res) => {
+  try {
+    const existingUser = await User.findOne({ email: req.body.email });
+    if (!existingUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const otpCode = generateRandomCode();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const updateUser = await User.findOneAndUpdate(
+      { email: req.body.email },
+      { $set: { "emailVerify.otp": otpCode, "emailVerify.expiresAt": expiresAt } },
+      { new: true }
+    );
+    const subject = "DevTinder Email Verification";
+    const template = Handlebars.compile(otpEmailTemplate);
+    const data = {
+      OTP_CODE: otpCode,
+      SENDER_EMAIL: process.env.SENDER_EMAIL
+    };
+    const html = template(data);
+    await run(subject, html);
+    res.status(200).json({ message: "Verification Code Sent on Email Successfully" });
+  } catch (err) {
+    res.status(400).send("Error in sendCodeEmail: " + err.message);
+  }
+});
+
+authRouter.post("/verifyEmail", async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    // Bypass OTP verification for testing
+    if (otp === '123456') {
+      const updatedUser = await User.findOneAndUpdate(
+        { email: req.body.email },
+        { $set: { "emailVerify.isVerified": true } },
+        { sort: { updatedAt: -1 }, new: true }
+      );
+      await User.deleteMany({ email: req.body.email, _id: { $ne: updatedUser._id } });
+      res.status(200).json({ message: "Email Verified Successfully" });
+    } else {
+      if (user.emailVerify.otp !== otp) {
+        return res.status(400).json({ message: "Invalid OTP" });
+      }
+      if (user.emailVerify.expiresAt < new Date()) {
+        return res.status(400).json({ message: "OTP has expired" });
+      }
+      const updatedUser = await User.findOneAndUpdate(
+        { email: req.body.email },
+        { $set: { "emailVerify.isVerified": true } },
+        { sort: { updatedAt: -1 }, new: true }
+      );
+      await User.deleteMany({ email: req.body.email, _id: { $ne: updatedUser._id } });
+      res.status(200).json({ message: "Email Verified Successfully" });
+    }
+  } catch (err) {
+    res.status(400).send("Error in verifyEmail: " + err.message);
   }
 });
 
 authRouter.post("/sendOtp", async (req, res) => {
   try {
     const { countryCode, phone } = req.body;
+    const existingUser = await User.findOne({ phone: `+${countryCode}${phone}` });
+    if (!existingUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    //Send the OTP using Twilio
     const otpResponse = await client.verify.v2
       .services(TWILIO_SERVICE_ID)
       .verifications.create({
         to: `+${countryCode}${phone}`,
         channel: "sms",
       });
-    res.status(200).json({ message: "OTP Sent Successfully", data: otpResponse });
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await User.findOneAndUpdate(
+      { phone: `+${countryCode}${phone}` },
+      { $set: { "phoneVerify.otp": 123456, "phoneVerify.expiresAt": expiresAt } },
+      { new: true }
+    );
+
+    // // Generate a new OTP and update the user's document
+    // const otpCode = generateRandomCode();
+    // const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    // await User.findOneAndUpdate(
+    //   { phone: `+${countryCode}${phone}` },
+    //   { $set: { "phoneVerify.otp": otpCode, "phoneVerify.expiresAt": expiresAt } },
+    //   { new: true }
+    // );
+    // const message = `This is your verification code: ${otpCode}. This is valid for 10 minutes only.`;
+    // const otpResponse = await client.messages
+    //   .create({
+    //     body: message,
+    //     from: TWILIO_PHONE_NUMBER,
+    //     to: `+${countryCode}${phone}`,
+    //   })
+    //   .then((message) => {
+    //     console.log(message.sid);
+    //   })
+    //   .done();
+    res.status(200).json({ message: "OTP Sent Successfully" });
   } catch (err) {
     res.status(err?.status || 400).send(err?.message || "Error in sendOtp: " + err.message);
   }
@@ -96,10 +179,41 @@ authRouter.post("/sendOtp", async (req, res) => {
 authRouter.post("/verifyOtp", async (req, res) => {
   try {
     const { countryCode, phone, otp } = req.body;
+    const existingUser = await User.findOne({ phone: `+${countryCode}${phone}` });
+    if (!existingUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
     // Bypass OTP verification for testing
     if (otp === '123456') {
-      res.status(200).json({ message: "OTP Verified Successfully" });
-    } else {
+      const updatedUser = await User.findOneAndUpdate(
+        { phone: `+${countryCode}${phone}` },
+        { $set: { "phoneVerify.isVerified": true } },
+        { sort: { updatedAt: -1 }, new: true }
+      );
+      await User.deleteMany({ phone: `+${countryCode}${phone}`, _id: { $ne: updatedUser._id } });
+      const token = await jwt.sign({ _id: updatedUser._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+      res.cookie("token", token, { expires: new Date(Date.now() + 8 * 360000) });
+      res.status(200).json({ message: "OTP Verified Successfully", data: { userId: updatedUser._id, token: token } });
+    }
+    // else {
+    //   if (existingUser.phoneVerify.otp !== otp) {
+    //     return res.status(400).json({ message: "Invalid OTP" });
+    //   }
+    //   if (existingUser.phoneVerify.expiresAt < new Date()) {
+    //     return res.status(400).json({ message: "OTP has expired" });
+    //   }
+    //   const updatedUser = await User.findOneAndUpdate(
+    //     { phone: `+${countryCode}${phone}` },
+    //     { $set: {"phoneVerify.isVerified": true } },
+    //     { sort: { updatedAt: -1 }, new: true }
+    //   );
+    //   await User.deleteMany({ phone: `+${countryCode}${phone}`, _id: { $ne: updatedUser._id } });
+    //   const token = await jwt.sign({ _id: updatedUser._id }, process.env.JWT_SECRET, {expiresIn: "1h"});
+    //   res.cookie("token", token, {expires: new Date(Date.now() + 8 * 360000)});
+    //   res.status(200).json({ message: "OTP Verified Successfully", data: {userId: updatedUser._id, token: token} });
+    // }
+    else {
+      // Twilio OTP Verification
       const otpResponse = await client.verify.v2
         .services(TWILIO_SERVICE_ID)
         .verificationChecks.create({
@@ -108,13 +222,77 @@ authRouter.post("/verifyOtp", async (req, res) => {
           channel: 'sms',
         });
       if (otpResponse.status === 'approved') {
-        res.status(200).json({ message: "OTP Verified Successfully", data: otpResponse });
-      } else {
-        res.status(400).send({ message: "Invalid OTP" });
+        const updatedUser = await User.findOneAndUpdate(
+          { phone: `+${countryCode}${phone}` },
+          { $set: { "phoneVerify.isVerified": true } },
+          { sort: { updatedAt: -1 }, new: true }
+        );
+        await User.deleteMany({ phone: `+${countryCode}${phone}`, _id: { $ne: updatedUser._id } });
+        const token = await jwt.sign({ _id: updatedUser._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+        res.cookie("token", token, { expires: new Date(Date.now() + 8 * 360000) });
+        res.status(200).json({ message: "OTP Verified Successfully", data: { userId: updatedUser._id, token: token } });
       }
     }
   } catch (err) {
     res.status(err?.status || 400).send(err?.message || "Error in verifyOtp: " + err.message);
+  }
+});
+
+authRouter.post("/resendOtp", async (req, res) => {
+  try {
+    const { countryCode, phone } = req.body;
+    const existingUser = await User.findOne({ phone: `+${countryCode}${phone}` });
+    if (!existingUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    // Check if the user has already verified their phone number
+    if (existingUser.phoneVerify.isVerified) {
+      return res.status(400).json({ message: "Phone number is already verified" });
+    }
+    // Check if the OTP has expired
+    if (existingUser.phoneVerify.expiresAt < new Date()) {
+
+      // Send the OTP using Twilio
+      const otpResponse = await client.verify.v2
+        .services(TWILIO_SERVICE_ID)
+        .verifications.create({
+          to: `+${countryCode}${phone}`,
+          channel: "sms",
+        });
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      await User.findOneAndUpdate(
+        { phone: `+${countryCode}${phone}` },
+        { $set: { "phoneVerify.otp": 123456, "phoneVerify.expiresAt": expiresAt } },
+        { new: true }
+      );
+
+      // // Generate a new OTP and update the user's document
+      // const otpCode = generateRandomCode();
+      // const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      // await User.findOneAndUpdate(
+      //   { phone: `+${countryCode}${phone}` },
+      //   { $set: { "phoneVerify.otp": otpCode, "phoneVerify.expiresAt": expiresAt } },
+      //   { new: true }
+      // );
+      // const message = `This is your verification code: ${otpCode}. This is valid for 10 minutes only.`;
+      // const otpResponse = await client.messages
+      //   .create({
+      //     body: message,
+      //     from: TWILIO_PHONE_NUMBER,
+      //     to: `+${countryCode}${phone}`,
+      //   })
+      //   .then((message) => {
+      //     console.log(message.sid);
+      //   })
+      //   .done();
+    } else {
+      return res.status(400).json({
+        message: "OTP is still valid. You can use the existing OTP to verify your phone number. If you're having trouble with the existing OTP, please wait until it expires before requesting a new one.",
+      });
+    }
+    res.status(200).json({ message: "OTP Sent Successfully" });
+  } catch (err) {
+    res.status(err?.status || 400).send(err?.message || "Error in resendOtp: " + err.message);
   }
 });
 
@@ -222,8 +400,8 @@ authRouter.post("/completeProfile", userAuth, async (req, res) => {
       description: req.body.description,
       skills: req.body.skills,
     }
-    const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: payload }, { new: true });
-    res.send({ message: "Profile Updated Successfully", data: updatedUser });
+    const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: { ...payload, isProfileCompleted: true } }, { new: true });
+    res.send({ message: "Profile Updated Successfully" });
   } catch (err) {
     res.status(400).send("Error in completeProfile: " + err.message);
   }

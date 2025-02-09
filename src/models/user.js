@@ -16,15 +16,11 @@ const userSchema = new mongoose.Schema(
     lastName: {
       type: String,
     },
-    countryCode: {
-      type: String,
-      default: "+91",
-    },
     phone: {
       type: String,
       validate(value) {
         if (!validator.isMobilePhone(value)) {
-          throw new Error("Enter a valid phone number"+ value);
+          throw new Error("Enter a valid phone number" + value);
         }
       },
     },
@@ -51,10 +47,12 @@ const userSchema = new mongoose.Schema(
     },
     age: {
       type: Number,
-      min: 18, // in case of number it is min, in case of string it is minLength
+      default: 0,
+      //min: 18, // in case of number it is min, in case of string it is minLength
     },
     gender: {
       type: String,
+      default: 'other',
       validate(value) {
         // this will only work in case of when creating a new document, not in case of updating
         if (!["male", "female", "other"].includes(value)) {
@@ -65,6 +63,7 @@ const userSchema = new mongoose.Schema(
     },
     imageUrl: {
       type: String,
+      default: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460__340.png',
       // validate(value) {
       //   if (!validator.isURL(value)) {
       //     throw new Error("Invalid image url" + value);
@@ -86,6 +85,54 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "free",
     },
+    emailVerify: {
+      type: mongoose.Schema.Types.Object,
+      default: {
+        otp: "",
+        expiresAt: null,
+        isVerified: false
+      },
+      properties: {
+        otp: {
+          type: String,
+          required: true
+        },
+        expiresAt: {
+          type: Date,
+          required: true
+        },
+        isVerified: {
+          type: Boolean,
+          default: false
+        }
+      }
+    },
+    phoneVerify: {
+      type: mongoose.Schema.Types.Object,
+      default: {
+        otp: "",
+        expiresAt: null,
+        isVerified: false
+      },
+      properties: {
+        otp: {
+          type: String,
+          required: true
+        },
+        expiresAt: {
+          type: Date,
+          required: true
+        },
+        isVerified: {
+          type: Boolean,
+          default: false
+        }
+      }
+    },
+    isProfileCompleted: {
+      type: Boolean,
+      default: false,
+    }
   },
 
   {

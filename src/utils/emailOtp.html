@@ -1,0 +1,63 @@
+const otpEmailTemplate = `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevTinder Email Verification</title>
+    <style>
+      body {
+        font-family: 'Arial', sans-serif;
+        background-color: #f8f9fa;
+        margin: 0;
+        padding: 0;
+      }
+      .container {
+        max-width: 500px;
+        margin: 40px auto;
+        background: #ffffff;
+        padding: 25px;
+        border-radius: 10px;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+        text-align: center;
+      }
+      .header {
+        color: #333;
+        font-size: 22px;
+        font-weight: bold;
+      }
+      .content {
+        margin-top: 20px;
+        color: #555;
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      .footer {
+        margin-top: 20px;
+        font-size: 14px;
+        color: #777;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        DevTinder Email Verification
+      </div>
+      <div class="content">
+        <p>Dear User,</p>
+        <p>Please enter the following verification code to verify your account:</p>
+        <p><strong>{{{OTP_CODE}}}</strong></p>
+        <p>This code is valid for only 10 minutes.</p>
+        <p>If you did not request this, please ignore this email.</p>
+        <p>For any issues, contact us at <strong>{{{SENDER_EMAIL}}}</strong>.</p>
+      </div>
+      <div class="footer">
+        Best regards, <br> 👨‍💻 DevTinder Team
+      </div>
+    </div>
+  </body>
+</html>
+`;
+
+module.exports = otpEmailTemplate;

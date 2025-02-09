@@ -3,4 +3,13 @@ const membershipAmount = {
     "gold": 700    
 };
 
-module.exports = { membershipAmount };
+/**
+ * Generates a random 6-digit code.
+ *
+ * @returns {number} A random 6-digit code.
+ */
+function generateRandomCode() {
+    return Math.floor(100000 + Math.random() * 900000);
+  }
+
+module.exports = { membershipAmount, generateRandomCode };

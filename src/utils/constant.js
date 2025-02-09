@@ -1,15 +1,19 @@
+const COLLECTION = {
+  USER: 'user',
+  USER_SESSION: 'user_session',
+  PAYMENT: 'payment',
+  CHAT: 'chat',
+  CONNECTION_REQUEST: 'connection_request',
+}
+
 const membershipAmount = {
     "silver": 300, 
     "gold": 700    
 };
 
-/**
- * Generates a random 6-digit code.
- *
- * @returns {number} A random 6-digit code.
- */
+
 function generateRandomCode() {
     return Math.floor(100000 + Math.random() * 900000);
   }
 
-module.exports = { membershipAmount, generateRandomCode };
+module.exports = { membershipAmount, generateRandomCode, COLLECTION };

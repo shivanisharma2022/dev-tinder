@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { COLLECTION } = require("../utils/constant");
 const paymentSchema = new mongoose.Schema(
     {
         userId: {
@@ -43,7 +44,11 @@ const paymentSchema = new mongoose.Schema(
 
 
     },
-    { timestamps: true }
+    {
+        versionKey: false,
+        //collection: COLLECTION.PAYMENT,
+        timestamps: true,
+    }
 )
 
 const Payment = mongoose.model("Payment", paymentSchema);

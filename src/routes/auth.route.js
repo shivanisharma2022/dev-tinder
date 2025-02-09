@@ -1,10 +1,11 @@
 const express = require("express");
 const authRouter = express.Router(); // same as const app = express();
 const User = require("../models/user");
+const UserSession = require("../models/userSession");
 const { validateSignupData } = require("../utils/validation");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const { userAuth } = require("../middlewares/auth");
+const { basicAuth, userAuth } = require("../middlewares/auth");
 const nodemailer = require("nodemailer");
 const { run } = require('../utils/sendEmail');
 const Handlebars = require("handlebars");
@@ -18,7 +19,7 @@ const client = require("twilio")(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, {
   lazyLoading: true
 });
 
-authRouter.post("/signup", async (req, res) => {
+authRouter.post("/signup", basicAuth, async (req, res) => {
   try {
     // Validation of data is required first
     validateSignupData(req);
@@ -37,17 +38,26 @@ authRouter.post("/signup", async (req, res) => {
       password: passwordHash,
     });
     const userNew = await user.save();
-    const token = await jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-    res.cookie("token", token, { expires: new Date(Date.now() + 8 * 360000) });
-    res.send({ message: "User Added Successfully", data: { userId: userNew._id, token: token } });
+
+    // const sessionPayload = {
+    //   headers: req.headers,
+    //   userData,
+    // };
+    // const sessionData = await UserSession.save(sessionPayload);
+    // const token = await jwt.sign({
+    //   _id: userNew._id,
+    //   sessionId: sessionData._id,
+    //   deviceId: sessionData.deviceId,
+    // });
+    
+    //const token = await jwt.sign({ _id: userNew._id }, process.env.JWT_SECRET, {expiresIn: "1h"});
+    res.send({ message: "User Added Successfully", data: { userId: userNew._id } });
   } catch (err) {
     res.status(400).send("Error saving the user: " + err.message);
   }
 });
 
-authRouter.post("/login", async (req, res) => {
+authRouter.post("/login", basicAuth, async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email: email });
@@ -58,15 +68,22 @@ authRouter.post("/login", async (req, res) => {
     if (!isPasswordValid) {
       throw new Error("Invalid credentials");
     }
+    // const sessionPayload = userSessionEntityV1.createSessionPayload(req.headers, userData);
+    //         await userSessionEntityV1.deleteMany({ userId: userData._id });
+    //         const sessionData = await userSessionEntityV1.saveData(sessionPayload);
+    //         const { accessToken } = await jwt.createUserTokens({
+    //             _id: userData._id,
+    //             sessionId: sessionData._id,
+    //             deviceId: sessionData.deviceId,
+    //         });
     const token = await jwt.sign({ _id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-    res.cookie("token", token);
     res.send({ message: "Login Successful", data: { token: token, data: user } });
   } catch (err) {
     res.status(400).send(err.message);
   }
 });
 
-authRouter.post("/sendOtpEmail", async (req, res) => {
+authRouter.post("/sendOtpEmail", basicAuth, async (req, res) => {
   try {
     const existingUser = await User.findOne({ email: req.body.email });
     if (!existingUser) {
@@ -93,7 +110,7 @@ authRouter.post("/sendOtpEmail", async (req, res) => {
   }
 });
 
-authRouter.post("/verifyEmail", async (req, res) => {
+authRouter.post("/verifyEmail", basicAuth, async (req, res) => {
   try {
     const { email, otp } = req.body;
     const user = await User.findOne({ email });
@@ -129,7 +146,7 @@ authRouter.post("/verifyEmail", async (req, res) => {
   }
 });
 
-authRouter.post("/sendOtp", async (req, res) => {
+authRouter.post("/sendOtp", basicAuth, async (req, res) => {
   try {
     const { countryCode, phone } = req.body;
     const existingUser = await User.findOne({ phone: `+${countryCode}${phone}` });
@@ -176,7 +193,7 @@ authRouter.post("/sendOtp", async (req, res) => {
   }
 });
 
-authRouter.post("/verifyOtp", async (req, res) => {
+authRouter.post("/verifyOtp", basicAuth, async (req, res) => {
   try {
     const { countryCode, phone, otp } = req.body;
     const existingUser = await User.findOne({ phone: `+${countryCode}${phone}` });
@@ -192,7 +209,6 @@ authRouter.post("/verifyOtp", async (req, res) => {
       );
       await User.deleteMany({ phone: `+${countryCode}${phone}`, _id: { $ne: updatedUser._id } });
       const token = await jwt.sign({ _id: updatedUser._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-      res.cookie("token", token, { expires: new Date(Date.now() + 8 * 360000) });
       res.status(200).json({ message: "OTP Verified Successfully", data: { userId: updatedUser._id, token: token } });
     }
     // else {
@@ -209,7 +225,6 @@ authRouter.post("/verifyOtp", async (req, res) => {
     //   );
     //   await User.deleteMany({ phone: `+${countryCode}${phone}`, _id: { $ne: updatedUser._id } });
     //   const token = await jwt.sign({ _id: updatedUser._id }, process.env.JWT_SECRET, {expiresIn: "1h"});
-    //   res.cookie("token", token, {expires: new Date(Date.now() + 8 * 360000)});
     //   res.status(200).json({ message: "OTP Verified Successfully", data: {userId: updatedUser._id, token: token} });
     // }
     else {
@@ -229,7 +244,6 @@ authRouter.post("/verifyOtp", async (req, res) => {
         );
         await User.deleteMany({ phone: `+${countryCode}${phone}`, _id: { $ne: updatedUser._id } });
         const token = await jwt.sign({ _id: updatedUser._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-        res.cookie("token", token, { expires: new Date(Date.now() + 8 * 360000) });
         res.status(200).json({ message: "OTP Verified Successfully", data: { userId: updatedUser._id, token: token } });
       }
     }
@@ -238,7 +252,7 @@ authRouter.post("/verifyOtp", async (req, res) => {
   }
 });
 
-authRouter.post("/resendOtp", async (req, res) => {
+authRouter.post("/resendOtp", basicAuth, async (req, res) => {
   try {
     const { countryCode, phone } = req.body;
     const existingUser = await User.findOne({ phone: `+${countryCode}${phone}` });
@@ -302,10 +316,9 @@ authRouter.post("/forgotPassword", async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const secret = process.env.JWT + user.password;
-    const token = jwt.sign({ id: user._id, email: user.email }, secret, { expiresIn: '1h' });
+    const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    const resetURL = `${process.env.WEBSITE_URL}resetpassword?id=${user._id}&token=${token}`;
+    const resetURL = `${process.env.WEBSITE_URL}resetpassword?token=${token}`;
 
     // const transporter = nodemailer.createTransport({
     //   service: 'gmail',
@@ -334,7 +347,7 @@ authRouter.post("/forgotPassword", async (req, res) => {
     };
     const html = template(data);
     await run(subject, html);
-    res.status(200).json({ message: 'Password reset link sent', data: token });
+    res.status(200).json({ message: 'Password reset link sent', data: {token: token} });
   } catch (err) {
     res.status(400).send("Error in forgotPassword: " + err.message);
   }
@@ -342,19 +355,16 @@ authRouter.post("/forgotPassword", async (req, res) => {
 
 authRouter.post("/resetPassword", async (req, res) => {
   try {
-    const { id, token } = req.query;
+    const { token } = req.query;
     const { password } = req.body;
-    const user = await User.findOne({ _id: id });
-    if (!user) {
-      return res.status(400).json({ message: "User not found" });
-    }
 
-    const secret = process.env.JWT + user.password;
-    jwt.verify(token, secret);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findOne({ _id: decoded.id });
+    if (!user) return res.status(400).json({ message: "User not found" });
 
     const encryptedPassword = await bcrypt.hash(password, 10);
-    const updatedUser = await User.findByIdAndUpdate(id, { password: encryptedPassword }, { new: true });
-    res.status(200).json({ message: 'Password has been reset', data: updatedUser });
+    const updatedUser = await User.findByIdAndUpdate({_id: user._id}, { password: encryptedPassword }, { new: true });
+    res.status(200).json({ message: 'Password has been reset' });
   } catch (err) {
     res.status(400).send("Error in resetPassword: " + err.message);
   }
@@ -386,7 +396,7 @@ authRouter.post("/changePassword", userAuth, async (req, res) => {
       runValidators: true //ensure that the new password is validated before it's saved to the db
     });
 
-    res.status(200).json({ message: "Password changed successfully", data: user });
+    res.status(200).json({ message: "Password changed successfully" });
   } catch (err) {
     res.status(400).send("Error in changePassword: " + err.message);
   }
@@ -407,9 +417,21 @@ authRouter.post("/completeProfile", userAuth, async (req, res) => {
   }
 });
 
-authRouter.use("/logout", async (req, res) => {
-  res.cookie("token", null, { expires: new Date(Date.now()) });
-  res.send("Logout Successfully");
+authRouter.post("/logout", userAuth, async (req, res) => {
+  try {
+  // const authHeader = req.headers?.authorization;
+  // const token = authHeader && authHeader.replace("Bearer ", "");
+  //   if (!token) {
+  //     return res.status(401).send("Authorization failed. No access token.");
+  //   }
+  // const decodedToken = await jwt.verify(token, process.env.JWT_SECRET);
+  // const expirationTime = Math.floor(Date.now() / 1000) + 1;
+  // await jwt.sign({ ...decodedToken, exp: expirationTime }, process.env.JWT_SECRET);
+  res.status(200).json({ message: "Logout successfully" });
+  } catch (err) {
+    console.log(err);
+    res.status(400).send("Error in logout: " + err.message);
+  }
 });
 
 module.exports = { authRouter };

@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { COLLECTION } = require("../utils/constant");
 const connectionRequestSchema = new mongoose.Schema(
   { // when we want to do 2 indexes it's called compound index
     fromUserId: {
@@ -21,8 +22,10 @@ const connectionRequestSchema = new mongoose.Schema(
     },
   },
   {
+    versionKey: false,
+    //collection: COLLECTION.ConnectionRequest,
     timestamps: true,
-  }
+}
 );
 
 connectionRequestSchema.index({ fromUserId: 1, toUserId: 1 }); //-1 for DESC

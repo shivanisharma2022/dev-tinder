@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-
+const { COLLECTION } = require("../utils/constant");
 const messageSchema = new mongoose.Schema(
     {
         senderId: {
@@ -26,7 +26,11 @@ const chatSchema = new mongoose.Schema(
         ],
         messages: [messageSchema],
     },
-    { timestamps: true }
+    {
+        versionKey: false,
+        //collection: COLLECTION.CHAT,
+        timestamps: true,
+    }
 )
 
 const Chat = mongoose.model("Chat", chatSchema);

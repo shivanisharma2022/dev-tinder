@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { COLLECTION } = require("../utils/constant");
 const validator = require("validator"); // to add some strong validations
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
@@ -134,10 +135,11 @@ const userSchema = new mongoose.Schema(
       default: false,
     }
   },
-
   {
+    versionKey: false,
+    //collection: COLLECTION.USER,
     timestamps: true,
-  }
+}
 );
 
 // Schema methods related to user

@@ -1,9 +1,9 @@
 const COLLECTION = {
   USER: 'user',
-  USER_SESSION: 'user_session',
+  USER_SESSION: 'userSession',
   PAYMENT: 'payment',
   CHAT: 'chat',
-  CONNECTION_REQUEST: 'connection_request',
+  CONNECTION_REQUEST: 'connectionRequest',
 }
 
 const membershipAmount = {

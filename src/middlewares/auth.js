@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const User = require("../models/user");
+const UserSession = require("../models/userSession");
 
 const basicAuth = (req, res, next) => {
   try {
@@ -28,10 +29,17 @@ const userAuth = async (req, res, next) => {
     }
 
     const decoded = await jwt.verify(token, process.env.JWT_SECRET);
+
     const user = await User.findById(decoded._id);
     if (!user) {
       return res.status(401).send("User not found");
     }
+
+    const session = await UserSession.findOne({ userId: user._id });
+    if (!session) {
+      return res.status(401).send("Session expired! Please login again.");
+    }
+
     req.user = user;
     next();
   } catch (err) {

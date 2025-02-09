@@ -14,10 +14,14 @@ const userSessionSchema = new mongoose.Schema(
     },
     {
         versionKey: false,
-        //collection: COLLECTION.USER_SESSION,
+        collection: COLLECTION.USER_SESSION,
         timestamps: true,
     }
 )
 
 const UserSession = mongoose.model("UserSession", userSessionSchema);
-module.exports = { UserSession };
+module.exports = UserSession ;
+
+// const UserSession = mongoose.model("UserSession", userSessionSchema);
+
+// module.exports = UserSession;

@@ -12,6 +12,8 @@ const Handlebars = require("handlebars");
 const forgotPasswordTemplate = require('../utils/forgotPassword.html');
 const otpEmailTemplate = require('../utils/emailOtp.html');
 const { generateRandomCode } = require("../utils/constant");
+const redis = require('../config/redis');
+const { v4: uuidv4 } = require('uuid');
 require("dotenv").config();
 
 const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SERVICE_ID } = process.env;
@@ -39,20 +41,29 @@ authRouter.post("/signup", basicAuth, async (req, res) => {
     });
     const userNew = await user.save();
 
+    const sessionId = uuidv4();
+    const sessionDataRedis = {
+      userId: userNew._id,
+      deviceId: req.headers["device-id"] || " ",
+      deviceToken: req.headers["device-token"] || " ",
+      deviceType: req.headers["device-type"] || " ",
+    };
+
+    await redis.hmset(`session:${sessionId}`, sessionDataRedis);
+
     const sessionPayload = new UserSession( {
-      userId: user._id,
+      userId: userNew._id,
       deviceId: req.headers["device-id"] || " ",
       deviceToken: req.headers["device-token"] || " ",
       deviceType: req.headers["device-type"] || " ",
     });
 
-    //const sessionData = await UserSession.save(sessionPayload);
     const sessionData = await sessionPayload.save();
 
     const token = await jwt.sign(
-      { _id: userNew._id, sessionId: sessionData._id, deviceId: sessionData.deviceId },
+      { _id: userNew._id, sessionId: sessionDataRedis._id, deviceId: sessionDataRedis.deviceId },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "1h", algorithm: "HS256" }
     );
     res.send({ message: "User Added Successfully", data: { userId: userNew._id, token: token } });
   } catch (err) {
@@ -72,7 +83,10 @@ authRouter.post("/login", basicAuth, async (req, res) => {
       throw new Error("Invalid credentials");
     }
 
+    await redis.del(`session:${user._id}`);
     await UserSession.deleteMany({ userId: user._id });
+
+    //await UserSession.deleteMany({ userId: user._id });
 
     const sessionPayload = new UserSession( {
       userId: user._id,
@@ -80,14 +94,23 @@ authRouter.post("/login", basicAuth, async (req, res) => {
       deviceToken: req.headers["device-token"] || " ",
       deviceType: req.headers["device-type"] || " ",
     });
+    const sessionDataDB = await sessionPayload.save();
 
-    //const sessionData = await UserSession.save(sessionPayload);
-    const sessionData = await sessionPayload.save();
+    const sessionId = sessionDataDB._id;
+    const sessionData = {
+      userId: user._id,
+      deviceId: req.headers["device-id"] || " ",
+      deviceToken: req.headers["device-token"] || " ",
+      deviceType: req.headers["device-type"] || " ",
+    };
+
+    await redis.hmset(`session:${sessionId}`, sessionData);
+    await redis.expire(`session:${user._id}`, 3600);
 
     const token = await jwt.sign(
-      { _id: user._id, sessionId: sessionData._id, deviceId: sessionData.deviceId },
+      { _id: user._id, sessionId: sessionDataDB._id, deviceId: sessionDataDB.deviceId },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "1h", algorithm: "HS256"  }
     );
     res.send({ message: "Login Successful", data: { token: token, data: user } });
   } catch (err) {
@@ -431,8 +454,10 @@ authRouter.post("/completeProfile", userAuth, async (req, res) => {
 
 authRouter.post("/logout", userAuth, async (req, res) => {
   try {
-    const userId = req.user.id;
-    await UserSession.deleteOne({ userId: userId });
+    const userId = req.user._id;
+    await UserSession.deleteMany({ userId: userId });
+    await redis.del(`session:${req.user.sessionId}`);
+
     // const authHeader = req.headers?.authorization;
     // const token = authHeader && authHeader.replace("Bearer ", "");
     //   if (!token) {

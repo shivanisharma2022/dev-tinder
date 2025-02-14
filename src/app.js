@@ -13,6 +13,7 @@ require("./utils/cronjob");
 const http = require("http");
 const initializeSocket = require("./utils/socket");
 const { chatRouter } = require("./routes/chat.route");
+const redis = require('./config/redis');
 
 app.use(                                 // cors is used before any other middleware
   cors({
@@ -29,6 +30,12 @@ app.use("/", requestRouter);
 app.use("/", userRouter);
 app.use("/", paymentRouter);
 app.use("/", chatRouter);
+
+// // Redis integration
+// app.use((req, res, next) => {
+//   req.redis = redis;
+//   next();
+// });
 
 // Socket.io integration
 const server = http.createServer(app);

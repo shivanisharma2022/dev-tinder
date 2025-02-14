@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const User = require("../models/user");
 const UserSession = require("../models/userSession");
+const redis = require('../config/redis');
 
 const basicAuth = (req, res, next) => {
   try {
@@ -30,19 +31,55 @@ const userAuth = async (req, res, next) => {
 
     const decoded = await jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await User.findById(decoded._id);
+    // const dataFromRedis = await redis.hgetall(`session:${decoded._id}`);
+    // console.log(dataFromRedis);
+    // if (dataFromRedis) {
+    //   const userId = dataFromRedis.userId;
+    //   const session = await redis.hgetall(`session:${userId}`);
+    //   if (!session) {
+    //     return res.status(401).send("Session expired! Please login again.");
+    //   }
+    // } else {
+    //   const user = await User.findById(decoded._id);
+    //   if (!user) {
+    //     return res.status(401).send("User not found");
+    //   }
+    //   const session = await UserSession.findOne({ userId: user._id });
+    //   if (!session) {
+    //     return res.status(401).send("Session expired! Please login again.");
+    //   }
+
+    //   // await redis.hmset(`user:${user._id}`, user);
+    //   // await redis.hmset(`session:${decoded.sessionId}`, session);
+    // }
+
+    // Check session in Redis
+    const sessionData = await redis.hgetall(`session:${decoded.sessionId}`);
+    if (!sessionData || !sessionData.userId) {
+      // If not in Redis, check in MongoDB
+      const sessionFromDB = await UserSession.findOne({ _id: decoded.sessionId });
+      if (!sessionFromDB) {
+        return res.status(401).json({ error: "Session expired! Please login again." });
+      }
+
+      // Restore session to Redis
+      await redis.hmset(`session:${decoded.sessionId}`, sessionFromDB.toObject());
+      await redis.expire(`session:${decoded.sessionId}`, 3600);
+    }
+
+    // Fetch user
+    const user = await User.findById({ _id: decoded._id });
     if (!user) {
-      return res.status(401).send("User not found");
+      return res.status(401).json({ error: "User not found" });
     }
 
-    const session = await UserSession.findOne({ userId: user._id });
-    if (!session) {
-      return res.status(401).send("Session expired! Please login again.");
-    }
-
-    req.user = user;
+    req.user = {
+      ...user.toObject(),
+      sessionId: decoded.sessionId,
+    };
     next();
   } catch (err) {
+    console.log(err);
     res.status(401).send("Unauthorized" + err.message);
   }
 };

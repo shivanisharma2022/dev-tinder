@@ -38,6 +38,11 @@ paymentRouter.post("/payment/create", userAuth, async (req, res) => {
 
         const savedPayment = await payment.save();
 
+        // const user = await User.findById({_id: req.user._id});
+        // user.isPremium = true;
+        // user.membershipType = payment.notes.membershipType;
+        // await user.save();
+
 
         // return my order deatils to FE
 
@@ -90,7 +95,8 @@ paymentRouter.post("/payment/webhook", async (req, res) => {
 
 paymentRouter.get("/premium/verify", userAuth, async (req, res) => {
     try {
-        const user = req.user.JSON();
+        const user = req.user.toObject ? req.user.toObject() : req.user;
+
         if (user.isPremium) {
             //return res.json({ isPremium: true });
             return res.json({ ...user });

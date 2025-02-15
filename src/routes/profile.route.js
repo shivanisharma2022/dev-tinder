@@ -3,6 +3,7 @@ const profileRouter = express.Router();
 const jwt = require("jsonwebtoken");
 const { userAuth } = require("../middlewares/auth");
 const { validateEditData } = require("../utils/validation");
+const User = require("../models/user");
 
 profileRouter.get("/profile/view", userAuth, async (req, res) => {
   try {
@@ -18,13 +19,10 @@ profileRouter.patch("/profile/edit", userAuth, async (req, res) => {
     if (!validateEditData(req)) {
       throw new Error("Invalid Edit Request"); // this same error will only be catched in the catch block
     }
-    const loggedInUser = req.user;
-    Object.keys(req.body).forEach((key) => (loggedInUser[key] = req.body[key]));
-    await loggedInUser.save();
-    console.log(loggedInUser);
+    const updatedUser = await User.findByIdAndUpdate(req.user._id, req.body, { new: true });
     res.send({
-      message: `${loggedInUser.firstName}, Profile Updated Successfully`,
-      data: loggedInUser,
+      message: `${updatedUser.firstName}, Profile Updated Successfully`,
+      data: updatedUser,
     });
   } catch (err) {
     res.status(400).send("Error updating the user: " + err.message);

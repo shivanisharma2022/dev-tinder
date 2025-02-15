@@ -163,7 +163,7 @@ authRouter.post("/verifyEmail", basicAuth, async (req, res) => {
       await User.deleteMany({ email: req.body.email, _id: { $ne: updatedUser._id } });
       res.status(200).json({ message: "Email Verified Successfully" });
     } else {
-      if (user.emailVerify.otp !== otp) {
+      if (parseInt(user.emailVerify.otp) !== parseInt(otp)) {
         return res.status(400).json({ message: "Invalid OTP" });
       }
       if (user.emailVerify.expiresAt < new Date()) {
@@ -280,7 +280,7 @@ authRouter.post("/verifyOtp", basicAuth, async (req, res) => {
         );
         await User.deleteMany({ phone: `+${countryCode}${phone}`, _id: { $ne: updatedUser._id } });
         //const token = await jwt.sign({ _id: updatedUser._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-        res.status(200).json({ message: "OTP Verified Successfully", data: { userId: updatedUser._id, token: token } });
+        res.status(200).json({ message: "OTP Verified Successfully", data: { userId: updatedUser._id } });
       }
     }
   } catch (err) {
@@ -394,7 +394,7 @@ authRouter.post("/forgotPassword", async (req, res) => {
 
     const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    const resetURL = `${process.env.WEBSITE_URL}resetpassword?token=${token}`;
+    const resetURL = `${process.env.WEBSITE_URL}resetpassword?id=${user._id}&token=${token}`;
 
     // const transporter = nodemailer.createTransport({
     //   service: 'gmail',
@@ -431,10 +431,12 @@ authRouter.post("/forgotPassword", async (req, res) => {
 
 authRouter.post("/resetPassword", async (req, res) => {
   try {
-    const { token } = req.query;
+    const { id, token } = req.query;
     const { password } = req.body;
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.id !== id) return res.status(400).json({ message: "Invalid token or id" });
+
     const user = await User.findOne({ _id: decoded.id });
     if (!user) return res.status(400).json({ message: "User not found" });
 

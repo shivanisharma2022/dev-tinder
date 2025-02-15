@@ -26,11 +26,12 @@ authRouter.post("/signup", basicAuth, async (req, res) => {
     // Validation of data is required first
     validateSignupData(req);
     // encryption of password and then storing it in db
-    const { firstName, lastName, phone, email, password } = req.body;
+    const { email } = req.body;
     const existingUser = await User.findOne({ email });
     if (existingUser && existingUser.emailVerify.isVerified === true) {
-      return res.status(400).json({ error: "Email already exists" });
+      throw new Error("This email address is already associated with an account.");
     }
+    const { firstName, lastName, phone, password } = req.body;
     const passwordHash = await bcrypt.hash(password, 10);
     const user = new User({
       firstName,
@@ -65,7 +66,7 @@ authRouter.post("/signup", basicAuth, async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "1h", algorithm: "HS256" }
     );
-    res.send({ message: "User Added Successfully", data: { userId: userNew._id, token: token } });
+    res.send({ message: "User Added Successfully", data: { token: token, data: userNew } });
   } catch (err) {
     res.status(400).send("Error saving the user: " + err.message);
   }
@@ -342,6 +343,46 @@ authRouter.post("/resendOtp", basicAuth, async (req, res) => {
     res.status(200).json({ message: "OTP Sent Successfully" });
   } catch (err) {
     res.status(err?.status || 400).send(err?.message || "Error in resendOtp: " + err.message);
+  }
+});
+
+authRouter.post("/resendOtpEmail", basicAuth, async (req, res) => {
+  try {
+    const existingUser = await User.findOne({ email: req.body.email });
+    if (!existingUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+     // Check if the user has already verified their email
+     if (existingUser.emailVerify.isVerified) {
+      return res.status(400).json({ message: "Email is already verified" });
+    }
+    // Check if the OTP has expired
+    if (existingUser.emailVerify.expiresAt < new Date()) {
+      
+    const otpCode = generateRandomCode();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const updateUser = await User.findOneAndUpdate(
+      { email: req.body.email },
+      { $set: { "emailVerify.otp": otpCode, "emailVerify.expiresAt": expiresAt } },
+      { new: true }
+    );
+    const subject = "DevTinder Email Verification";
+    const template = Handlebars.compile(otpEmailTemplate);
+    const data = {
+      OTP_CODE: otpCode,
+      SENDER_EMAIL: process.env.SENDER_EMAIL
+    };
+    const html = template(data);
+    await run(subject, html);
+  } else {
+    return res.status(400).json({
+      message: "OTP is still valid. You can use the existing OTP to verify your email. If you're having trouble with the existing OTP, please wait until it expires before requesting a new one.",
+    });
+  }
+    res.status(200).json({ message: "Verification Code Sent on Email Successfully" });
+  } catch (err) {
+    res.status(400).send("Error in resendOtpEmail: " + err.message);
   }
 });
 

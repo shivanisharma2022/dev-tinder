@@ -14,6 +14,8 @@ const otpEmailTemplate = require('../utils/emailOtp.html');
 const { generateRandomCode } = require("../utils/constant");
 const redis = require('../config/redis');
 const { v4: uuidv4 } = require('uuid');
+const { generateUploadUrl, generateDownloadUrl } = require('../utils/pre-signedUrl');
+
 require("dotenv").config();
 
 const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SERVICE_ID } = process.env;
@@ -513,6 +515,26 @@ authRouter.post("/logout", userAuth, async (req, res) => {
   } catch (err) {
     console.log(err);
     res.status(400).send("Error in logout: " + err.message);
+  }
+});
+
+authRouter.post('/upload-url', basicAuth, async (req, res) => {
+  try {
+    const { fileName, fileType } = req.body;
+    const url = await generateUploadUrl(fileName, fileType);
+    res.send({ url });
+  } catch (error) {
+    res.status(500).json({ error: 'Error generating upload URL' });
+  }
+});
+
+authRouter.post('/download-url', basicAuth, async (req, res) => {
+  try {
+    const { fileName } = req.body;
+    const url = await generateDownloadUrl(fileName);
+    res.send({ url });
+  } catch (error) {
+    res.status(500).json({ error: 'Error generating download URL' });
   }
 });
 

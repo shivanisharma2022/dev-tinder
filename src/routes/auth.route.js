@@ -15,6 +15,8 @@ const { generateRandomCode } = require("../utils/constant");
 const redis = require('../config/redis');
 const { v4: uuidv4 } = require('uuid');
 const { generateUploadUrl, generateDownloadUrl } = require('../utils/pre-signedUrl');
+const { sendPushNotification } = require('../firebase/firebase');
+const notificationMessages = require('../utils/notification');
 
 require("dotenv").config();
 
@@ -78,6 +80,7 @@ authRouter.post("/login", basicAuth, async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email: email });
+    const userSessionData = await UserSession.findOne({ userId: user._id });
     if (!user || user.emailVerify.isVerified === false) {
       throw new Error("Email does not exist. Please create an account.");
     }
@@ -115,6 +118,10 @@ authRouter.post("/login", basicAuth, async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "1h", algorithm: "HS256"  }
     );
+
+    console.log("Going to send push notification >>>>>>>>>>>>>>>>")
+
+    await sendPushNotification(userSessionData.deviceToken, notificationMessages.login(user.firstName));
     res.send({ message: "Login Successful", data: { token: token, data: user } });
   } catch (err) {
     res.status(400).send(err.message);

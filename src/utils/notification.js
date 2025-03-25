@@ -10,6 +10,12 @@ const notificationMessages = {
       body: `Hi ${firstName}, glad to have you back! Start swiping and connecting now.`,
       type: "login",
     }),
+
+    bulk: () => ({
+      title: "Bulk Notification of DevTinder!",
+      body: "This is a bulk notification sent to multiple users.",
+      type: "bulk",
+    }),
   };
   
   module.exports = notificationMessages;

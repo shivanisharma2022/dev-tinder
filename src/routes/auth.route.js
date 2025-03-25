@@ -11,11 +11,11 @@ const { run } = require('../utils/sendEmail');
 const Handlebars = require("handlebars");
 const forgotPasswordTemplate = require('../utils/forgotPassword.html');
 const otpEmailTemplate = require('../utils/emailOtp.html');
-const { generateRandomCode } = require("../utils/constant");
+const { generateRandomCode, batchSize } = require("../utils/constant");
 const redis = require('../config/redis');
 const { v4: uuidv4 } = require('uuid');
 const { generateUploadUrl, generateDownloadUrl } = require('../utils/pre-signedUrl');
-const { sendPushNotification } = require('../firebase/firebase');
+const { publishMessage } = require("../rabbitMQ/notification/producer");
 const notificationMessages = require('../utils/notification');
 
 require("dotenv").config();
@@ -70,6 +70,14 @@ authRouter.post("/signup", basicAuth, async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "1h", algorithm: "HS256" }
     );
+
+    console.log("Queuing push notification >>>>>>>>>>>>>>>>");
+    await publishMessage({
+      channel: "push",
+      token: sessionData.deviceToken,
+      payload: notificationMessages.signup(user.firstName)
+    });
+
     res.send({ message: "User Added Successfully", data: { token: token, data: userNew } });
   } catch (err) {
     res.status(400).send("Error saving the user: " + err.message);
@@ -91,8 +99,6 @@ authRouter.post("/login", basicAuth, async (req, res) => {
 
     await redis.del(`session:${user._id}`);
     await UserSession.deleteMany({ userId: user._id });
-
-    //await UserSession.deleteMany({ userId: user._id });
 
     const sessionPayload = new UserSession( {
       userId: user._id,
@@ -119,9 +125,13 @@ authRouter.post("/login", basicAuth, async (req, res) => {
       { expiresIn: "1h", algorithm: "HS256"  }
     );
 
-    console.log("Going to send push notification >>>>>>>>>>>>>>>>")
+    console.log("Queuing push notification >>>>>>>>>>>>>>>>");
+    await publishMessage({
+      channel: "push",
+      token: sessionDataDB.deviceToken,
+      payload: notificationMessages.login(user.firstName)
+    });
 
-    await sendPushNotification(userSessionData.deviceToken, notificationMessages.login(user.firstName));
     res.send({ message: "Login Successful", data: { token: token, data: user } });
   } catch (err) {
     res.status(400).send(err.message);
@@ -544,5 +554,30 @@ authRouter.post('/download-url', basicAuth, async (req, res) => {
     res.status(500).json({ error: 'Error generating download URL' });
   }
 });
+
+authRouter.post("/sendBulkNotifications", basicAuth, async (req, res) => {
+  try {
+    const sessions = await UserSession.find({}, "deviceToken");
+    if (deviceTokens.length === 0) {
+      return res.status(400).json({ error: "No active users with device tokens found." });
+    }
+
+    for (let i = 0; i < deviceTokens.length; i += batchSize) {
+      const batch = deviceTokens.slice(i, i + batchSize);
+
+      await publishMessage({
+        channel: "push",
+        tokens: batch,
+        payload: notificationMessages.bulk()
+      });
+    }
+
+    res.json({ message: "Bulk notifications queued successfully.", totalUsers: deviceTokens.length });
+  } catch (error) {
+    console.error("Error sending bulk notifications:", error);
+    res.status(500).json({ error: "Failed to queue bulk notifications." });
+  }
+});
+
 
 module.exports = { authRouter };

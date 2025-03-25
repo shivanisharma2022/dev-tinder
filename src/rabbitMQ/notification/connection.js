@@ -9,7 +9,7 @@ async function createConnection() {
         connection = await amqp.connect(RABBITMQ_URL);
         // Listens for connection errors. 'error' event type is emitted when there is an error in the connection
         connection.on('error', async (err) => {
-            console.log('RabbitMQ connection error:', err);
+            console.log('RabbitMQ connection error: >>>>>>>>>', err);
             await closeConnection();
             setTimeout(createConnection, 5000);
         });

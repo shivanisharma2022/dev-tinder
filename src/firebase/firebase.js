@@ -31,16 +31,27 @@ const sendPushNotificationBatch = async (fcmTokens, payload) => {
       return;
     }
 
-    const message = {
-      notification: { title: payload.title, body: payload.body },
-      tokens: fcmTokens,
-    };
+    console.log(`Sending batch notification to........... ${fcmTokens.length} tokens`);
 
-    await admin.messaging().sendMulticast(message);
-    console.log(`Batch notification sent successfully: ${payload.title}`);
+    const messages = fcmTokens.map(token => ({
+      notification: {
+        title: payload.title,
+        body: payload.body,
+      },
+      token,
+    }));
+
+    for (const message of messages) {
+      try {
+        const response = await admin.messaging().send(message);
+        console.log(`Notification sent successfully to ${message.token}:`, response);
+      } catch (error) {
+        console.error(`Error sending notification to ${message.token}:`, error);
+      }
+    }
   } catch (error) {
-    console.error("Error sending batch notifications:", error);
+    console.error('Error in sending notifications:', error);
   }
-};
+}
 
 module.exports = { admin, sendPushNotification, sendPushNotificationBatch };

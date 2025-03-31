@@ -12,16 +12,17 @@ async function publishMessage(message) {
     }
 }
 
-const testNotification = {
-    channel: 'push',
-    token: 'sample_fcm_token',
-    payload: { title: 'Test Title', body: 'Test Body' }
-};
-
-
-publishMessage(testNotification);
-
 module.exports = { publishMessage };
+
+
+// const testNotification = {
+//     channel: 'push',
+//     token: 'sample_fcm_token',
+//     payload: { title: 'Test Title', body: 'Test Body' }
+// };
+
+
+// publishMessage(testNotification);
 
 // async function publishMessage(message) {
 //     try {

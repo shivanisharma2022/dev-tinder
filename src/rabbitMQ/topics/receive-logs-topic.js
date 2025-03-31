@@ -21,9 +21,9 @@ amqp.connect('amqp://localhost', function (error0, connection) {
       routingKeys.forEach(function (key) {
         channel.bindQueue(q.queue, exchange, key);
       });
-
+      console.log(`Waiting for messages in queue: ${q.queue}.`);
       channel.consume(q.queue, function (msg) {
-        console.log(">>>>>>>>>>>>>>>>>>>>", msg.fields.routingKey, msg.content.toString());
+        console.log("Message received", msg.fields.routingKey, msg.content.toString());
       }, {
         noAck: true
       });

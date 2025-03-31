@@ -126,11 +126,13 @@ authRouter.post("/login", basicAuth, async (req, res) => {
     );
 
     console.log("Queuing push notification >>>>>>>>>>>>>>>>");
-    await publishMessage({
+
+    const notificationPayload = {
       channel: "push",
       token: sessionDataDB.deviceToken,
       payload: notificationMessages.login(user.firstName)
-    });
+    }
+    await publishMessage(notificationPayload);
 
     res.send({ message: "Login Successful", data: { token: token, data: user } });
   } catch (err) {
@@ -557,13 +559,29 @@ authRouter.post('/download-url', basicAuth, async (req, res) => {
 
 authRouter.post("/sendBulkNotifications", basicAuth, async (req, res) => {
   try {
-    const sessions = await UserSession.find({}, "deviceToken");
+    //const sessions = await UserSession.find({}, "deviceToken");
+    //const deviceTokens = sessions.map(session => session.deviceToken);
+
+    const deviceTokens = [
+      "fcm_token_1",
+      "fcm_token_2",
+      "fcm_token_3",
+      "fcm_token_4",
+      "fcm_token_5",
+      "fcm_token_6",
+      "fcm_token_7",
+      "fcm_token_8",
+      "fcm_token_9",
+      "fcm_token_10",
+    ]
     if (deviceTokens.length === 0) {
       return res.status(400).json({ error: "No active users with device tokens found." });
     }
 
     for (let i = 0; i < deviceTokens.length; i += batchSize) {
       const batch = deviceTokens.slice(i, i + batchSize);
+
+      console.log(`Sending batch ${Math.floor(i / batchSize) + 1}:`, batch);
 
       await publishMessage({
         channel: "push",

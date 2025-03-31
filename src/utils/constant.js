@@ -16,6 +16,6 @@ function generateRandomCode() {
     return Math.floor(100000 + Math.random() * 900000);
   }
 
-const batchSize = 100;
+const batchSize = 3;
 
 module.exports = { membershipAmount, generateRandomCode, COLLECTION, batchSize };
